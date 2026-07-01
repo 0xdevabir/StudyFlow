@@ -1,0 +1,16 @@
+{
+  "name": "@studyflow/config",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./eslint": "./eslint/index.cjs",
+    "./eslint/node": "./eslint/node.cjs",
+    "./eslint/react": "./eslint/react.cjs",
+    "./tsconfig/base.json": "./tsconfig/base.json",
+    "./tsconfig/node.json": "./tsconfig/node.json",
+    "./tsconfig/react.json": "./tsconfig/react.json",
+    "./tsconfig/next.json": "./tsconfig/next.json"
+  },
+  "files": ["eslint", "tsconfig"]
+}

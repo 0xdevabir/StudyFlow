@@ -1,0 +1,10 @@
+{
+  "extends": "@studyflow/config/tsconfig/node.json",
+  "compilerOptions": {
+    "outDir": "dist",
+    "rootDir": "src",
+    "composite": false,
+    "noEmit": true
+  },
+  "include": ["src/**/*"]
+}

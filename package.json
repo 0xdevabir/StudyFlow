@@ -1,0 +1,33 @@
+{
+  "name": "studyflow",
+  "version": "0.1.0",
+  "private": true,
+  "description": "StudyFlow — a personal learning operating system. Track any kind of learning in one place.",
+  "packageManager": "pnpm@9.12.0",
+  "engines": {
+    "node": ">=20.10.0",
+    "pnpm": ">=9.0.0"
+  },
+  "scripts": {
+    "dev": "turbo run dev --parallel",
+    "build": "turbo run build",
+    "lint": "turbo run lint",
+    "typecheck": "turbo run typecheck",
+    "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md,css}\" --ignore-path .gitignore",
+    "format:check": "prettier --check \"**/*.{ts,tsx,js,jsx,json,md,css}\" --ignore-path .gitignore",
+    "clean": "turbo run clean && rm -rf node_modules .turbo",
+    "db:generate": "pnpm --filter @studyflow/db generate",
+    "db:migrate": "pnpm --filter @studyflow/db migrate",
+    "db:push": "pnpm --filter @studyflow/db push",
+    "db:seed": "pnpm --filter @studyflow/db seed",
+    "db:studio": "pnpm --filter @studyflow/db studio",
+    "db:reset": "pnpm --filter @studyflow/db reset"
+  },
+  "devDependencies": {
+    "@types/node": "^22.7.5",
+    "prettier": "^3.3.3",
+    "prettier-plugin-tailwindcss": "^0.6.8",
+    "turbo": "^2.1.3",
+    "typescript": "^5.6.3"
+  }
+}
