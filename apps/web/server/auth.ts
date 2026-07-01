@@ -68,17 +68,42 @@ function pickCookie(store: Awaited<ReturnType<typeof cookies>>, names: string[])
  * know how to mint a fully-valid cookie, so the signature check buys us
  * nothing in this position.
  *
+ * Payload shape (verified against Better Auth 1.6.x's cookieCache writer):
+ *
+ *   {
+ *     "session": {                          // ← outer wrapper
+ *       "session": { token, id, userId, expiresAt, ... },
+ *       "user":    { id, name, email, image, ... },
+ *       "updatedAt": <ms>,
+ *       "version": "1"
+ *     },
+ *     "expiresAt": <ms>,
+ *     "signature": "<hmac>"
+ *   }
+ *
  * This path exists purely so a logged-in user never gets bounced by a
  * transient signing-library glitch on Vercel.
  */
 function sessionFromCookieCache(raw: string): SessionData | null {
   try {
     const decoded = Buffer.from(raw, 'base64').toString('utf8');
-    // Cache may be wrapped: { session: {...}, user: {...}, ... } or just a session.
     const parsed = JSON.parse(decoded);
-    const session = parsed?.session ?? parsed;
-    const user = parsed?.user;
+
+    // Both `cookieCache` (with outer wrapper) and the older flat shape
+    // (`{ session, user, ... }` at root) need to be handled — Better Auth
+    // versions and writers vary slightly. We unwrap in priority order.
+    const wrapper = parsed?.session ?? parsed;
+    if (!wrapper || typeof wrapper !== 'object') return null;
+
+    const session = wrapper.session ?? wrapper;
+    const user = wrapper.user;
     if (!session?.token || !user?.id) return null;
+    if (typeof session.expiresAt !== 'string' && typeof session.expiresAt !== 'number') {
+      // expiresAt may be in the outer wrapper too.
+      const outerExpiry = wrapper.expiresAt ?? parsed.expiresAt;
+      if (!outerExpiry) return null;
+    }
+
     return {
       user: {
         id: user.id,
@@ -107,17 +132,42 @@ export async function getServerSession(): Promise<SessionData | null> {
   const rawToken = pickCookie(cookieStore, SESSION_COOKIE_NAMES);
   const rawCache = pickCookie(cookieStore, COOKIE_CACHE_NAMES);
 
+  // eslint-disable-next-line no-console
+  console.log('[auth] getServerSession start', {
+    runtime: process.env.NEXT_RUNTIME ?? 'unknown',
+    hasToken: Boolean(rawToken),
+    hasCache: Boolean(rawCache),
+  });
+
   // Path 1: try Better Auth's helper (preferred — handles all signature work).
+  // Wrapped so a single failure falls through to the other paths instead of
+  // hard-erroring the request (which on Vercel Edge can manifest as a 500
+  // that the client surfaces as "blank dashboard").
   try {
     const headerList = await headers();
     const baSession = await auth.api.getSession({ headers: headerList });
     if (baSession?.user && baSession?.session) {
+      // eslint-disable-next-line no-console
+      console.log('[auth] resolved via auth.api.getSession');
       return baSession as SessionData;
     }
+    // eslint-disable-next-line no-console
+    console.log('[auth] auth.api.getSession returned null/empty');
   } catch (err) {
-    // Log so we can see this on Vercel if it actually fires.
     // eslint-disable-next-line no-console
     console.warn('[auth] auth.api.getSession failed, falling back:', err);
+  }
+
+  // Path 3 first: decode the cookieCache payload. Better Auth writes the
+  // full session + user blob there for 5 minutes. This path works on every
+  // runtime (Node, Edge, browser) because it doesn't touch the database.
+  if (rawCache) {
+    const fromCache = sessionFromCookieCache(rawCache);
+    if (fromCache) {
+      // eslint-disable-next-line no-console
+      console.log('[auth] resolved via cookie cache');
+      return fromCache;
+    }
   }
 
   // Path 2: parse the signed session token and look up the row directly.
@@ -149,6 +199,8 @@ export async function getServerSession(): Promise<SessionData | null> {
 
         const row = rows[0];
         if (row) {
+          // eslint-disable-next-line no-console
+          console.log('[auth] resolved via direct DB lookup');
           return {
             user: {
               id: row.userId,
@@ -172,14 +224,8 @@ export async function getServerSession(): Promise<SessionData | null> {
     }
   }
 
-  // Path 3: decode the cookieCache payload. Better Auth writes the full
-  // session + user blob there for 5 minutes — enough to bridge any transient
-  // signing/DB hiccup without forcing a re-login.
-  if (rawCache) {
-    const fromCache = sessionFromCookieCache(rawCache);
-    if (fromCache) return fromCache;
-  }
-
+  // eslint-disable-next-line no-console
+  console.warn('[auth] NO session resolved');
   return null;
 }
 

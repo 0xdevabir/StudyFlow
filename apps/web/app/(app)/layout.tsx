@@ -1,4 +1,5 @@
 import { redirect } from 'next/navigation';
+import { cookies, headers } from 'next/headers';
 import { getServerSession } from '~/server/auth';
 import { Sidebar } from '~/components/layout/sidebar';
 import { Topbar } from '~/components/layout/topbar';
@@ -11,8 +12,33 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
+  // Diagnostic: log every (app) render so we can see in Vercel logs whether
+  // the layout is actually being entered, and which runtime answered it.
+  const ck = await cookies();
+  const hd = await headers();
+  // eslint-disable-next-line no-console
+  console.log('[app-layout] entering', {
+    runtime: process.env.NEXT_RUNTIME ?? 'unknown',
+    cookieNames: ck.getAll().map((c) => c.name),
+    headerHost: hd.get('host'),
+    hasAuthCookie: Boolean(
+      ck.get('__Secure-better-auth.session_token')?.value ??
+      ck.get('better-auth.session_token')?.value,
+    ),
+    hasSessionData: Boolean(
+      ck.get('__Secure-better-auth.session_data')?.value ??
+      ck.get('better-auth.session_data')?.value,
+    ),
+  });
+
   const session = await getServerSession();
-  if (!session?.user) redirect('/login');
+  if (!session?.user) {
+    // eslint-disable-next-line no-console
+    console.log('[app-layout] NO SESSION — redirecting to /login');
+    redirect('/login');
+  }
+  // eslint-disable-next-line no-console
+  console.log('[app-layout] session ok, rendering for user:', session.user.email);
 
   const user = {
     name: session.user.name,
