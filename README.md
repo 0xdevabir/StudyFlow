@@ -143,12 +143,11 @@ See [`STUDYFLOW_ARCHITECTURE.md`](./STUDYFLOW_ARCHITECTURE.md) for the full arch
 
 ### Vercel (web)
 
-The `web` workspace is **Vercel-ready out of the box**. A `vercel.json` at the repo root pins the framework, build command, and region.
+The `web` workspace is **Vercel-ready**. A `vercel.json` lives at `apps/web/vercel.json` and pins the framework, build/install commands, and region.
 
 1. **Create a new Vercel project** pointing at this repo.
-2. Set **Root Directory** to the repo root (the monorepo).
-3. Vercel auto-detects `vercel.json`. The build runs `pnpm turbo run build --filter=@studyflow/web...`.
-4. Add the following **Environment Variables** (Project Settings → Environment Variables):
+2. **Project Settings → General → Root Directory**: set to `apps/web` (so Vercel treats the Next app as the project root). The repo's own `vercel.json` is picked up automatically.
+3. Add the following **Environment Variables** (Project Settings → Environment Variables):
 
    | Variable | Required | Notes |
    |---|---|---|
@@ -160,7 +159,9 @@ The `web` workspace is **Vercel-ready out of the box**. A `vercel.json` at the r
    | `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | optional | Enable Google login. Add `https://<your-app>.vercel.app/api/auth/callback/google` as an Authorized redirect URI. |
    | `RESEND_API_KEY` | optional | If you want to send real verification emails in production. |
 
-5. **Important**: the build does NOT need any of these — Drizzle, auth, and env validation are all **lazy**. Setting the variables above is sufficient.
+4. **Important**: the build does NOT need any of these — Drizzle, auth, and env validation are all **lazy**. Setting the variables above is sufficient.
+
+> The build command in `apps/web/vercel.json` is `cd ../.. && pnpm turbo run build --filter=@studyflow/web...`, so Turbo orchestrates the workspace build with the right env propagation. The `outputDirectory` is `.next` (relative to `apps/web/`).
 
 ### Express API (Railway / Fly / Render)
 

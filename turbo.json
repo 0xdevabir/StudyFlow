@@ -20,7 +20,11 @@
   "tasks": {
     "build": {
       "dependsOn": ["^build"],
-      "outputs": [".next/**", "!.next/cache/**", "dist/**"],
+      "outputs": [
+        ".next/**",
+        "!.next/cache/**",
+        "dist/**"
+      ],
       "env": [
         "DATABASE_URL",
         "BETTER_AUTH_SECRET",
