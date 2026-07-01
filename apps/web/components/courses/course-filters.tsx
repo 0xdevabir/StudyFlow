@@ -2,6 +2,9 @@
 /**
  * Course filters. Uses native form submission to the same page so the
  * server component re-renders with the new searchParams.
+ *
+ * Wrapped in <Suspense> at the page boundary because useSearchParams
+ * triggers Next 15's prerender bailout otherwise.
  */
 import * as React from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -9,6 +12,18 @@ import { Input } from '~/components/ui/input';
 import { Button } from '~/components/ui/button';
 
 export function CourseFilters() {
+  return (
+    <React.Suspense
+      fallback={
+        <div className="h-9 w-full animate-pulse rounded-md bg-[var(--color-muted)]" />
+      }
+    >
+      <CourseFiltersInner />
+    </React.Suspense>
+  );
+}
+
+function CourseFiltersInner() {
   const router = useRouter();
   const params = useSearchParams();
   const [q, setQ] = React.useState(params.get('q') ?? '');

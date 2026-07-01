@@ -3,6 +3,10 @@ import { getServerSession } from '~/server/auth';
 import { Sidebar } from '~/components/layout/sidebar';
 import { Topbar } from '~/components/layout/topbar';
 
+// Every (app) page needs the session, which means we cannot prerender.
+// Setting this once on the layout applies to every nested route.
+export const dynamic = 'force-dynamic';
+
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const session = await getServerSession();
   if (!session?.user) redirect('/login');

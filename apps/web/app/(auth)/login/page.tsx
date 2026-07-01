@@ -12,7 +12,26 @@ import { Button } from '~/components/ui/button';
 import { Input } from '~/components/ui/input';
 import { Label } from '~/components/ui/label';
 
+// Next.js 15 requires components using useSearchParams to be wrapped in
+// <Suspense> at the page boundary. We split the form into two halves so the
+// fallback stays minimal.
 export default function LoginPage() {
+  return (
+    <React.Suspense fallback={<LoginFallback />}>
+      <LoginForm />
+    </React.Suspense>
+  );
+}
+
+function LoginFallback() {
+  return (
+    <div className="flex items-center justify-center py-12">
+      <Loader2 className="h-5 w-5 animate-spin text-[var(--color-muted-foreground)]" />
+    </div>
+  );
+}
+
+function LoginForm() {
   const router = useRouter();
   const params = useSearchParams();
   const from = params.get('from') ?? '/dashboard';

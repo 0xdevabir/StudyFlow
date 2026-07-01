@@ -1,0 +1,12 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": "nextjs",
+  "buildCommand": "pnpm turbo run build --filter=@studyflow/web...",
+  "installCommand": "pnpm install --frozen-lockfile",
+  "outputDirectory": "apps/web/.next",
+  "regions": ["iad1"],
+  "github": {
+    "silent": false,
+    "autoAlias": true
+  }
+}

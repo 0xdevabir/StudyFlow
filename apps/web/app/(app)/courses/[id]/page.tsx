@@ -6,7 +6,6 @@ import Link from 'next/link';
 import { ArrowLeft, BookOpen, ExternalLink, GraduationCap, Layers, ListChecks } from 'lucide-react';
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '~/components/ui/card';
-import { Button } from '~/components/ui/button';
 import { HierarchyTree } from '~/components/courses/hierarchy-tree';
 import { Badge } from '~/components/ui/badge';
 import { getCurrentUser } from '~/server/auth';
@@ -100,9 +99,6 @@ export default async function CourseDetailPage({ params }: PageProps) {
                 reorder, click plus to add a child.
               </CardDescription>
             </div>
-            <Button asChild variant="outline" size="sm">
-              <Link href={`/courses/${c.id}/tasks`}>Tasks</Link>
-            </Button>
           </div>
         </CardHeader>
         <CardContent>

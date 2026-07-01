@@ -141,9 +141,42 @@ See [`STUDYFLOW_ARCHITECTURE.md`](./STUDYFLOW_ARCHITECTURE.md) for the full arch
 
 ## Deployment
 
-- **web** → Vercel (Next.js). Set env: `NEXT_PUBLIC_API_URL`, `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL`.
-- **api** → Railway / Fly / Render (Node). Set env: `DATABASE_URL`, `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL`, `CORS_ORIGIN`, `PORT`, `LOG_LEVEL`. Start command: `node apps/api/dist/server.js`.
-- **db** → Neon. One DB per environment. Run migrations with `pnpm db:migrate` in a release job before deploying the API.
+### Vercel (web)
+
+The `web` workspace is **Vercel-ready out of the box**. A `vercel.json` at the repo root pins the framework, build command, and region.
+
+1. **Create a new Vercel project** pointing at this repo.
+2. Set **Root Directory** to the repo root (the monorepo).
+3. Vercel auto-detects `vercel.json`. The build runs `pnpm turbo run build --filter=@studyflow/web...`.
+4. Add the following **Environment Variables** (Project Settings → Environment Variables):
+
+   | Variable | Required | Notes |
+   |---|---|---|
+   | `DATABASE_URL` | yes | Pooled Neon URL. |
+   | `BETTER_AUTH_SECRET` | yes | ≥ 32 random bytes. `openssl rand -base64 32`. |
+   | `BETTER_AUTH_URL` | yes | `https://<your-app>.vercel.app` — no trailing slash. |
+   | `NEXT_PUBLIC_APP_URL` | yes | Same as `BETTER_AUTH_URL`. |
+   | `NEXT_PUBLIC_API_URL` | yes | URL of your deployed Express API (see below). |
+   | `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | optional | Enable Google login. Add `https://<your-app>.vercel.app/api/auth/callback/google` as an Authorized redirect URI. |
+   | `RESEND_API_KEY` | optional | If you want to send real verification emails in production. |
+
+5. **Important**: the build does NOT need any of these — Drizzle, auth, and env validation are all **lazy**. Setting the variables above is sufficient.
+
+### Express API (Railway / Fly / Render)
+
+The `api` workspace is a standard Node 20+ server. Build command:
+```
+pnpm --filter @studyflow/api build
+```
+Start command:
+```
+node apps/api/dist/server.js
+```
+Required env: `DATABASE_URL`, `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL` (same value as Vercel), `CORS_ORIGIN` (the Vercel URL), `PORT` (defaults to 4000), `LOG_LEVEL`.
+
+### Database
+
+- **Neon** — one DB per environment (preview/production). Run migrations with `pnpm db:migrate` in a release job before deploying the API. Set `DATABASE_URL` to the **pooled** URL (`…?sslmode=require&pgbouncer=true&connect_timeout=10`).
 
 ---
 
