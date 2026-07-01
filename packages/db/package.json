@@ -11,12 +11,12 @@
     "./client": "./src/client.ts"
   },
   "scripts": {
-    "generate": "drizzle-kit generate",
-    "migrate": "drizzle-kit migrate",
-    "push": "drizzle-kit push",
-    "studio": "drizzle-kit studio",
+    "generate": "drizzle-kit generate --config=drizzle.config.mts",
+    "migrate": "drizzle-kit migrate --config=drizzle.config.mts",
+    "push": "drizzle-kit push --config=drizzle.config.mts",
+    "studio": "drizzle-kit studio --config=drizzle.config.mts",
     "seed": "tsx src/seed.ts",
-    "reset": "drizzle-kit push --force && pnpm seed",
+    "reset": "drizzle-kit push --force --config=drizzle.config.mts && pnpm seed",
     "lint": "eslint src --max-warnings 0",
     "typecheck": "tsc --noEmit",
     "clean": "rm -rf .turbo dist"

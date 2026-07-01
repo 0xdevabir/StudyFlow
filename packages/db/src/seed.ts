@@ -10,7 +10,7 @@
  */
 import 'dotenv/config';
 import { eq } from 'drizzle-orm';
-import { db } from './client.js';
+import { db } from './client';
 import {
   course,
   courseHierarchy,
@@ -18,7 +18,7 @@ import {
   settings,
   task,
   user,
-} from './schema/index.js';
+} from './schema/index';
 
 const DEMO_EMAIL = 'demo@studyflow.local';
 const DEMO_NAME = 'Demo Learner';

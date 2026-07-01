@@ -16,7 +16,7 @@ import { neon as createNeonClient, neonConfig } from '@neondatabase/serverless';
 import { Pool } from 'pg';
 import type { ExtractTablesWithRelations } from 'drizzle-orm';
 import type { PgTransaction, PgQueryResultHKT } from 'drizzle-orm/pg-core';
-import * as schema from './schema/index.js';
+import * as schema from './schema/index';
 
 type DrizzleDb =
   | ReturnType<typeof drizzleHttp<typeof schema>>
@@ -56,7 +56,7 @@ export const db = new Proxy({} as DrizzleDb, {
 });
 
 export { schema };
-export * from './schema/index.js';
+export * from './schema/index';
 export type DB = DrizzleDb;
 export type DbTransaction = PgTransaction<
   PgQueryResultHKT,

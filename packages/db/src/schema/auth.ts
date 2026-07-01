@@ -9,8 +9,9 @@ import {
   text,
   timestamp,
   uniqueIndex,
+  uuid,
 } from 'drizzle-orm/pg-core';
-import { softDelete, timestamps, uuidPk } from '../helpers.js';
+import { softDelete, timestamps, uuidPk } from '../helpers';
 
 export const user = pgTable(
   'users',
@@ -35,7 +36,7 @@ export const user = pgTable(
 
 export const session = pgTable('sessions', {
   id: uuidPk('id'),
-  userId: text('user_id')
+  userId: uuid('user_id')
     .notNull()
     .references(() => user.id, { onDelete: 'cascade' }),
   token: text('token').notNull(),
@@ -47,7 +48,7 @@ export const session = pgTable('sessions', {
 
 export const account = pgTable('accounts', {
   id: uuidPk('id'),
-  userId: text('user_id')
+  userId: uuid('user_id')
     .notNull()
     .references(() => user.id, { onDelete: 'cascade' }),
   accountId: text('account_id').notNull(),

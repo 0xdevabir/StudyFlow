@@ -1,9 +1,9 @@
 // Canonical schema barrel — keeps Drizzle and the seed/CLI scripts clean.
-export * from './enums.js';
-export * from './auth.js';
-export * from './courses.js';
-export * from './tasks.js';
-export * from './sessions.js';
-export * from './content.js';
-export * from './goals.js';
-export * from './system.js';
+export * from './enums';
+export * from './auth';
+export * from './courses';
+export * from './tasks';
+export * from './sessions';
+export * from './content';
+export * from './goals';
+export * from './system';

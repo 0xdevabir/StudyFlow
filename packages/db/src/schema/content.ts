@@ -8,12 +8,12 @@ import {
   uuid,
   varchar,
 } from 'drizzle-orm/pg-core';
-import { softDelete, timestamps, uuidPk } from '../helpers.js';
-import { user } from './auth.js';
-import { course, courseHierarchy } from './courses.js';
-import { attachmentKindEnum, bookmarkKindEnum } from './enums.js';
-import { task } from './tasks.js';
-import { studySession } from './sessions.js';
+import { softDelete, timestamps, uuidPk } from '../helpers';
+import { user } from './auth';
+import { course, courseHierarchy } from './courses';
+import { attachmentKindEnum, bookmarkKindEnum } from './enums';
+import { task } from './tasks';
+import { studySession } from './sessions';
 
 export const note = pgTable(
   'notes',

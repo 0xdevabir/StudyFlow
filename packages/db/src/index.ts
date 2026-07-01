@@ -1,2 +1,2 @@
 // Public package surface.
-export * from './client.js';
+export * from './client';

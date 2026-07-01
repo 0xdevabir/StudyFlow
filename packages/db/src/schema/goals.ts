@@ -13,15 +13,15 @@ import {
   varchar,
 } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
-import { softDelete, timestamps, uuidPk } from '../helpers.js';
-import { user } from './auth.js';
-import { course, courseHierarchy } from './courses.js';
+import { softDelete, timestamps, uuidPk } from '../helpers';
+import { user } from './auth';
+import { course, courseHierarchy } from './courses';
 import {
   goalMetricEnum,
   goalPeriodEnum,
   habitFrequencyEnum,
   revisionIntervalUnitEnum,
-} from './enums.js';
+} from './enums';
 
 export const goal = pgTable(
   'goals',

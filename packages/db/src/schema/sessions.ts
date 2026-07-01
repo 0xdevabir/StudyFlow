@@ -9,10 +9,10 @@ import {
   varchar,
 } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
-import { softDelete, timestamps, uuidPk } from '../helpers.js';
-import { user } from './auth.js';
-import { course, courseHierarchy } from './courses.js';
-import { reminderKindEnum } from './enums.js';
+import { softDelete, timestamps, uuidPk } from '../helpers';
+import { user } from './auth';
+import { course, courseHierarchy } from './courses';
+import { reminderKindEnum } from './enums';
 
 export const studySession = pgTable(
   'study_sessions',

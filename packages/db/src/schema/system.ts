@@ -15,14 +15,14 @@ import {
   varchar,
 } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
-import { softDelete, timestamps, uuidPk } from '../helpers.js';
-import { user } from './auth.js';
+import { softDelete, timestamps, uuidPk } from '../helpers';
+import { user } from './auth';
 import {
   activityKindEnum,
   memberRoleEnum,
   notificationKindEnum,
   themeEnum,
-} from './enums.js';
+} from './enums';
 
 export const tag = pgTable(
   'tags',

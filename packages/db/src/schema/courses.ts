@@ -16,9 +16,9 @@ import {
   varchar,
 } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
-import { softDelete, timestamps, uuidPk } from '../helpers.js';
-import { user } from './auth.js';
-import { coursePriorityEnum, courseStatusEnum } from './enums.js';
+import { softDelete, timestamps, uuidPk } from '../helpers';
+import { user } from './auth';
+import { coursePriorityEnum, courseStatusEnum } from './enums';
 
 export const course = pgTable(
   'courses',

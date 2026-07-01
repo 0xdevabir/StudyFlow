@@ -1,3 +1,6 @@
+// drizzle-kit config — uses .mts extension so it always loads as native ESM,
+// regardless of the package.json `type` field. This avoids the CJS resolver
+// failing on `.js → .ts` import specifiers in the schema barrel.
 import 'dotenv/config';
 import { defineConfig } from 'drizzle-kit';
 

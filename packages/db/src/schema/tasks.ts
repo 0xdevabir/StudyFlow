@@ -8,10 +8,10 @@ import {
   uuid,
   varchar,
 } from 'drizzle-orm/pg-core';
-import { softDelete, timestamps, uuidPk } from '../helpers.js';
-import { user } from './auth.js';
-import { course, courseHierarchy } from './courses.js';
-import { taskPriorityEnum, taskStatusEnum, taskTypeEnum } from './enums.js';
+import { softDelete, timestamps, uuidPk } from '../helpers';
+import { user } from './auth';
+import { course, courseHierarchy } from './courses';
+import { taskPriorityEnum, taskStatusEnum, taskTypeEnum } from './enums';
 
 export const task = pgTable(
   'tasks',
