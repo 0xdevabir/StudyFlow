@@ -1,18 +1,22 @@
 /**
  * Server-side queries for the dashboard. Pure Drizzle — no fetch overhead.
+ *
+ * Why raw SQL for counts and per-day grouping?
+ *   Neon HTTP and node-pg return slightly different shapes (`{ rows }` vs the
+ *   value directly). We normalise through `sql<number>` casts so the call site
+ *   treats both transports identically.
  */
 import 'server-only';
-import { sql } from 'drizzle-orm';
+import { and, count, desc, eq, isNull, ne, sql } from 'drizzle-orm';
 import { db } from '@studyflow/db';
-import { course, courseHierarchy, courseProgress, task } from '@studyflow/db/schema';
+import { course, courseProgress, task } from '@studyflow/db/schema';
 
 export interface DashboardData {
-  greeting: string;
   counts: {
     activeCourses: number;
     completedCourses: number;
     activeTasks: number;
-    sessionsThisWeek: number;
+    totalSessions: number;
     totalMinutes: number;
   };
   upcomingTasks: Array<{
@@ -38,28 +42,90 @@ export interface DashboardData {
   }>;
 }
 
+/**
+ * Normalise the row shape from raw SELECTs so we don't care which driver
+ * the runtime picked.
+ */
+function firstNumber(row: unknown): number {
+  if (row == null) return 0;
+  if (Array.isArray(row)) {
+    const first = row[0];
+    if (first == null) return 0;
+    if (typeof first === 'object') {
+      const values = Object.values(first as Record<string, unknown>);
+      const n = Number(values[0]);
+      return Number.isFinite(n) ? n : 0;
+    }
+    const n = Number(first);
+    return Number.isFinite(n) ? n : 0;
+  }
+  if (typeof row === 'object') {
+    const values = Object.values(row as Record<string, unknown>);
+    const n = Number(values[0]);
+    return Number.isFinite(n) ? n : 0;
+  }
+  const n = Number(row);
+  return Number.isFinite(n) ? n : 0;
+}
+
+function firstNumberPair(row: unknown): { a: number; b: number } {
+  if (row == null) return { a: 0, b: 0 };
+  const values =
+    Array.isArray(row)
+      ? Array.isArray(row[0])
+        ? (row[0] as unknown[])
+        : Object.values((row[0] ?? {}) as Record<string, unknown>)
+      : Object.values(row as Record<string, unknown>);
+  return {
+    a: Number.isFinite(Number(values[0])) ? Number(values[0]) : 0,
+    b: Number.isFinite(Number(values[1])) ? Number(values[1]) : 0,
+  };
+}
+
 export async function getDashboardData(userId: string): Promise<DashboardData> {
+  const fourteenDaysAgo = new Date();
+  fourteenDaysAgo.setDate(fourteenDaysAgo.getDate() - 13);
+  fourteenDaysAgo.setHours(0, 0, 0, 0);
+
   const [
-    coursesRes,
-    completedRes,
+    activeCoursesRes,
+    completedCoursesRes,
     activeTasksRes,
-    sessionsRes,
+    totalSessionsRes,
     upcomingTasks,
     weekSessions,
     recentCourses,
   ] = await Promise.all([
-    db.execute<{ count: string }>(sql`
-      SELECT count(*)::text AS count FROM courses
-      WHERE owner_id = ${userId}::uuid AND deleted_at IS NULL AND status = 'active'
-    `),
-    db.execute<{ count: string }>(sql`
-      SELECT count(*)::text AS count FROM courses
-      WHERE owner_id = ${userId}::uuid AND deleted_at IS NULL AND status = 'completed'
-    `),
-    db.execute<{ count: string }>(sql`
-      SELECT count(*)::text AS count FROM tasks
-      WHERE user_id = ${userId}::uuid AND deleted_at IS NULL AND status IN ('pending','in_progress')
-    `),
+    db
+      .select({ n: count() })
+      .from(course)
+      .where(
+        and(
+          eq(course.ownerId, userId),
+          isNull(course.deletedAt),
+          eq(course.status, 'active'),
+        ),
+      ),
+    db
+      .select({ n: count() })
+      .from(course)
+      .where(
+        and(
+          eq(course.ownerId, userId),
+          isNull(course.deletedAt),
+          eq(course.status, 'completed'),
+        ),
+      ),
+    db
+      .select({ n: count() })
+      .from(task)
+      .where(
+        and(
+          eq(task.userId, userId),
+          isNull(task.deletedAt),
+          ne(task.status, 'completed'),
+        ),
+      ),
     db.execute<{ count: string; total: string }>(sql`
       SELECT count(*)::text AS count,
              coalesce(sum(duration_seconds),0)::text AS total
@@ -79,8 +145,14 @@ export async function getDashboardData(userId: string): Promise<DashboardData> {
         courseColor: course.color,
       })
       .from(task)
-      .leftJoin(course, sql`${task.courseId} = ${course.id}`)
-      .where(sql`${task.userId} = ${userId}::uuid AND ${task.deletedAt} IS NULL AND ${task.status} <> 'completed'`)
+      .leftJoin(course, eq(task.courseId, course.id))
+      .where(
+        and(
+          eq(task.userId, userId),
+          isNull(task.deletedAt),
+          ne(task.status, 'completed'),
+        ),
+      )
       .orderBy(sql`${task.dueAt} ASC NULLS LAST`)
       .limit(6),
     db.execute<{ bucket: string; seconds: string }>(sql`
@@ -89,7 +161,7 @@ export async function getDashboardData(userId: string): Promise<DashboardData> {
       FROM study_sessions
       WHERE user_id = ${userId}::uuid
         AND deleted_at IS NULL
-        AND started_at >= now() - interval '13 days'
+        AND started_at >= ${fourteenDaysAgo}::timestamptz
       GROUP BY 1
       ORDER BY 1
     `),
@@ -104,47 +176,57 @@ export async function getDashboardData(userId: string): Promise<DashboardData> {
         estimatedMinutes: course.estimatedMinutes,
       })
       .from(course)
-      .leftJoin(courseProgress, sql`${courseProgress.courseId} = ${course.id} AND ${courseProgress.userId} = ${userId}::uuid`)
-      .where(sql`${course.ownerId} = ${userId}::uuid AND ${course.deletedAt} IS NULL`)
-      .orderBy(sql`${course.updatedAt} DESC`)
+      .leftJoin(
+        courseProgress,
+        and(
+          eq(courseProgress.courseId, course.id),
+          eq(courseProgress.userId, userId),
+        ),
+      )
+      .where(and(eq(course.ownerId, userId), isNull(course.deletedAt)))
+      .orderBy(desc(course.updatedAt))
       .limit(4),
   ]);
 
-  // Build last-14-days series (zero-fill missing days).
+  // Build last-14-days series, zero-filling missing days.
   const byDay = new Map<string, number>();
-  for (const row of weekSessions.rows ?? []) {
-    byDay.set(String((row as { bucket: string }).bucket), Number((row as { seconds: string }).seconds) / 60);
+  for (const row of weekSessions as unknown as Array<{ bucket: string; seconds: string }>) {
+    byDay.set(String(row.bucket), Number(row.seconds) / 60);
   }
   const today = new Date();
   const recentSessionsByDay = Array.from({ length: 14 }, (_, i) => {
     const d = new Date(today);
     d.setDate(today.getDate() - (13 - i));
     const key = d.toISOString().slice(0, 10);
-    return {
-      day: key.slice(5),
-      minutes: Math.round(byDay.get(key) ?? 0),
-    };
+    return { day: key.slice(5), minutes: Math.round(byDay.get(key) ?? 0) };
   });
 
+  const sessionTotals = firstNumberPair(totalSessionsRes);
+
   return {
-    greeting: '',
     counts: {
-      activeCourses: Number((coursesRes.rows?.[0] as { count: string } | undefined)?.count ?? 0),
-      completedCourses: Number((completedRes.rows?.[0] as { count: string } | undefined)?.count ?? 0),
-      activeTasks: Number((activeTasksRes.rows?.[0] as { count: string } | undefined)?.count ?? 0),
-      sessionsThisWeek: Number((sessionsRes.rows?.[0] as { count: string } | undefined)?.count ?? 0),
-      totalMinutes: Math.round(Number((sessionsRes.rows?.[0] as { total: string } | undefined)?.total ?? 0) / 60),
+      activeCourses: firstNumber(activeCoursesRes),
+      completedCourses: firstNumber(completedCoursesRes),
+      activeTasks: firstNumber(activeTasksRes),
+      totalSessions: sessionTotals.a,
+      totalMinutes: Math.round(sessionTotals.b / 60),
     },
     upcomingTasks: upcomingTasks.map((t) => ({
       ...t,
       dueAt: t.dueAt ?? null,
+      courseId: t.courseId ?? null,
+      courseTitle: t.courseTitle ?? null,
+      courseColor: t.courseColor ?? null,
     })),
     recentSessionsByDay,
     courses: recentCourses.map((c) => ({
-      ...c,
-      percent: Number(c.percent ?? 0),
+      id: c.id,
+      title: c.title,
       color: c.color ?? '#6366F1',
       icon: c.icon ?? 'book',
+      status: c.status,
+      percent: Number(c.percent ?? 0),
+      estimatedMinutes: c.estimatedMinutes,
     })),
   };
 }

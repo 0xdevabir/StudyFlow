@@ -125,24 +125,29 @@ userRouter.patch(
 userRouter.get('/me/stats', async (req, res, next) => {
   try {
     const userId = req.user!.id;
-    const [courseCount] = await db.execute<{ count: string }>(sql`
-      SELECT count(*)::text AS count FROM courses
-      WHERE owner_id = ${userId}::uuid AND deleted_at IS NULL
-    ` as never);
-    const [activeTaskCount] = await db.execute<{ count: string }>(sql`
-      SELECT count(*)::text AS count FROM tasks
-      WHERE user_id = ${userId}::uuid AND deleted_at IS NULL AND status <> 'completed'
-    ` as never);
-    const [sessionStats] = await db.execute<{ total: string; minutes: string }>(sql`
-      SELECT count(*)::text AS total,
-             coalesce(sum(duration_seconds),0)::text AS minutes
-      FROM study_sessions
-      WHERE user_id = ${userId}::uuid AND deleted_at IS NULL
-    ` as never);
+    // Use count + sum aggregates via Drizzle.
+    const [courseCount] = await db
+      .select({ n: sql<number>`count(*)::int` })
+      .from(sql`courses`)
+      .where(sql`owner_id = ${userId}::uuid AND deleted_at IS NULL`)
+      .limit(1);
+    const [activeTaskCount] = await db
+      .select({ n: sql<number>`count(*)::int` })
+      .from(sql`tasks`)
+      .where(sql`user_id = ${userId}::uuid AND deleted_at IS NULL AND status <> 'completed'`)
+      .limit(1);
+    const [sessionStats] = await db
+      .select({
+        total: sql<number>`count(*)::int`,
+        minutes: sql<number>`coalesce(sum(duration_seconds),0)::int`,
+      })
+      .from(sql`study_sessions`)
+      .where(sql`user_id = ${userId}::uuid AND deleted_at IS NULL`)
+      .limit(1);
     res.json({
       data: {
-        courses: Number(courseCount?.count ?? 0),
-        activeTasks: Number(activeTaskCount?.count ?? 0),
+        courses: Number(courseCount?.n ?? 0),
+        activeTasks: Number(activeTaskCount?.n ?? 0),
         sessions: Number(sessionStats?.total ?? 0),
         totalSeconds: Number(sessionStats?.minutes ?? 0),
       },

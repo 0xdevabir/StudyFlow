@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { authRouter } from './modules/auth/auth.routes.js';
+import { courseRouter } from './modules/courses/course.routes.js';
 import { userRouter } from './modules/users/user.routes.js';
 
 export const apiRouter = Router();
@@ -8,6 +9,7 @@ export const apiRouter = Router();
 apiRouter.use('/auth', authRouter);
 
 apiRouter.use('/v1/users', userRouter);
+apiRouter.use('/v1/courses', courseRouter);
 
 apiRouter.get('/health', (_req, res) => {
   res.json({ data: { status: 'ok', uptime: process.uptime() } });

@@ -55,7 +55,6 @@ export const auth = betterAuth({
     // In dev we just log to the console (Mailpit-friendly).
     sendVerificationEmail: async ({ user, url }) => {
       if (authEnv.NODE_ENV !== 'production') {
-        // eslint-disable-next-line no-console
         console.log(`\n📧 Email verification link for ${user.email}:\n${url}\n`);
         return;
       }

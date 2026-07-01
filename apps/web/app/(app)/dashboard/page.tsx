@@ -55,7 +55,7 @@ export default async function DashboardPage() {
         <StatCard
           icon={Flame}
           label="Sessions"
-          value={data.counts.sessionsThisWeek}
+          value={data.counts.totalSessions}
           accent="bg-[var(--color-chart-4)]/15 text-[var(--color-chart-4)]"
         />
       </div>

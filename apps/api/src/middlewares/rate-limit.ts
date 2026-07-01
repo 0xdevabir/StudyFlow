@@ -1,15 +1,15 @@
 import rateLimit, { type Options } from 'express-rate-limit';
-import { config } from '../lib/env.js';
+import type { Request } from 'express';
 import { RATE_LIMITS } from '@studyflow/shared';
 
 function make(opts: { windowMs: number; max: number }): Options {
   return {
     windowMs: opts.windowMs,
-    max: opts.max,
+    limit: opts.max,
     standardHeaders: 'draft-7',
     legacyHeaders: false,
-    keyGenerator: (req) => (req.ip ?? 'unknown') + ':' + (req.originalUrl || ''),
-  };
+    keyGenerator: (req: Request) => (req.ip ?? 'unknown') + ':' + (req.originalUrl || ''),
+  } as unknown as Options;
 }
 
 export const globalRateLimit = rateLimit(
@@ -19,6 +19,3 @@ export const globalRateLimit = rateLimit(
 export const authRateLimit = rateLimit(
   make({ windowMs: RATE_LIMITS.auth.windowMs, max: RATE_LIMITS.auth.max }),
 );
-
-// silence eslint no-unused-vars
-void config;

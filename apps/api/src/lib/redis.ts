@@ -61,7 +61,16 @@ export function getKV(): KVStore {
   return _store;
 }
 
-function buildRedisStore(client: { get: Function; set: Function; del: Function; incr: Function; ttl: Function; expire: Function }): KVStore {
+type RedisLike = {
+  get(key: string): Promise<string | null>;
+  set(key: string, value: string, ...args: unknown[]): Promise<unknown>;
+  del(key: string): Promise<unknown>;
+  incr(key: string): Promise<number>;
+  ttl(key: string): Promise<number>;
+  expire(key: string, seconds: number): Promise<unknown>;
+};
+
+function buildRedisStore(client: RedisLike): KVStore {
   return {
     async get(key) {
       return (await client.get(key)) as string | null;
