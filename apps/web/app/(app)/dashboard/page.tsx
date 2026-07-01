@@ -34,18 +34,22 @@ export default async function DashboardPage() {
 
       {/* Stat cards */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <StatCard
-          icon={GraduationCap}
-          label="Active courses"
-          value={data.counts.activeCourses}
-          accent="bg-[var(--color-chart-1)]/15 text-[var(--color-chart-1)]"
-        />
-        <StatCard
-          icon={ListChecks}
-          label="Tasks pending"
-          value={data.counts.activeTasks}
-          accent="bg-[var(--color-chart-2)]/15 text-[var(--color-chart-2)]"
-        />
+        <Link href="/courses" className="block">
+          <StatCard
+            icon={GraduationCap}
+            label="Active courses"
+            value={data.counts.activeCourses}
+            accent="bg-[var(--color-chart-1)]/15 text-[var(--color-chart-1)]"
+          />
+        </Link>
+        <Link href="/tasks" className="block">
+          <StatCard
+            icon={ListChecks}
+            label="Tasks pending"
+            value={data.counts.activeTasks}
+            accent="bg-[var(--color-chart-2)]/15 text-[var(--color-chart-2)]"
+          />
+        </Link>
         <StatCard
           icon={Clock}
           label="Total study"
