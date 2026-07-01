@@ -5,8 +5,10 @@
  *   - apps/web/app/api/auth/[...all]/route.ts (Next.js handler)
  *   - apps/api/src/modules/auth/auth.routes.ts (Express mount)
  *
- * The `auth` instance is lazy so importing this module during Vercel's
- * build/collect phase (when env vars are not yet injected) doesn't crash.
+ * The instance is built lazily on first access. We expose it via a Proxy
+ * that intercepts every property/method access and lazily builds the
+ * underlying `betterAuth(...)` instance the first time anything is
+ * touched. Both property reads AND function calls work.
  */
 import { betterAuth } from 'better-auth';
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
@@ -84,22 +86,32 @@ function buildAuth() {
   return _auth;
 }
 
-/**
- * Lazy proxy. `.api.getSession(...)`, `.handler`, etc. all defer to the
- * real instance, so simply importing this module is safe.
- */
-export const auth: ReturnType<typeof betterAuth> = new Proxy(
-  {} as ReturnType<typeof betterAuth>,
-  {
-    get(_t, prop) {
-      const real = buildAuth();
-      const value = Reflect.get(real, prop, real);
-      return typeof value === 'function' ? value.bind(real) : value;
-    },
-  },
-) as ReturnType<typeof betterAuth>;
+type AuthInstance = ReturnType<typeof betterAuth>;
 
-export type Auth = ReturnType<typeof betterAuth>;
-// Re-export the builder for callers that need eager access (e.g. the
-// Express mount which always runs with env present).
+/**
+ * Lazy proxy. Every property access (`auth.handler`, `auth.api`) and every
+ * function call (`auth(...)`, even though Better Auth isn't callable
+ * itself, library code does this) lazily constructs the real instance
+ * the first time and then forwards correctly.
+ */
+export const auth: AuthInstance = new Proxy(function () {} as unknown as AuthInstance, {
+  get(_target, prop, _receiver) {
+    const real = buildAuth();
+    const value = Reflect.get(real, prop, real);
+    return typeof value === 'function' ? value.bind(real) : value;
+  },
+  has(_target, prop) {
+    return prop in buildAuth();
+  },
+  ownKeys() {
+    return Reflect.ownKeys(buildAuth());
+  },
+  getOwnPropertyDescriptor(_target, prop) {
+    return Reflect.getOwnPropertyDescriptor(buildAuth(), prop);
+  },
+}) as AuthInstance;
+
+export type Auth = AuthInstance;
+// Eager accessor for callers that always have env present at boot
+// (e.g. the Express API server which validates env on startup).
 export const getAuth = buildAuth;

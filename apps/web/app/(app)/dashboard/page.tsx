@@ -90,9 +90,10 @@ export default async function DashboardPage() {
               />
             ) : (
               data.upcomingTasks.map((t) => (
-                <div
+                <Link
                   key={t.id}
-                  className="flex items-start gap-3 rounded-lg border border-[var(--color-border)]/60 p-3"
+                  href={`/tasks?status=${t.status}`}
+                  className="flex items-start gap-3 rounded-lg border border-[var(--color-border)]/60 p-3 transition-colors hover:bg-[var(--color-accent)]/40"
                 >
                   <span
                     className="mt-1 h-2.5 w-2.5 shrink-0 rounded-full"
@@ -108,7 +109,7 @@ export default async function DashboardPage() {
                     </p>
                   </div>
                   <PriorityPill priority={t.priority} />
-                </div>
+                </Link>
               ))
             )}
           </CardContent>
