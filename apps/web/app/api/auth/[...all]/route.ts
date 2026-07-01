@@ -80,15 +80,19 @@ async function withCors(
     cors.forEach((v, k) => out.set(k, v));
     return new Response(res.body, { status: res.status, statusText: res.statusText, headers: out });
   } catch (err) {
+    // Log the full error server-side so we can diagnose from Vercel logs.
+    // eslint-disable-next-line no-console
+    console.error('[auth] handler failed:', err);
     // Surface the real error with proper CORS so the browser shows it,
     // not a generic "CORS blocked" message.
     const message = err instanceof Error ? err.message : 'Auth error';
+    const stack = err instanceof Error ? err.stack : undefined;
     const headers = corsHeaders(req, origin);
     headers.set('Content-Type', 'application/json');
-    return new NextResponse(JSON.stringify({ error: { code: 'AUTH_ERROR', message } }), {
-      status: 500,
-      headers,
-    });
+    return new NextResponse(
+      JSON.stringify({ error: { code: 'AUTH_ERROR', message, stack } }),
+      { status: 500, headers },
+    );
   }
 }
 
