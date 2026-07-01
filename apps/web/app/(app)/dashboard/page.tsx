@@ -17,7 +17,30 @@ export default async function DashboardPage() {
   const user = await getCurrentUser();
   if (!user) redirect('/login');
 
-  const data = await getDashboardData(user.id);
+  // Wrap the data fetch so a single failing query (e.g. an undefined schema
+  // column, a driver mismatch, a null reference inside a row) surfaces its
+  // real error in Vercel logs instead of an opaque "Application error" digest.
+  // Each sub-block is also defensive: any failure degrades to empty data so
+  // the page still renders, instead of crashing the whole dashboard.
+  const data = await (async (): Promise<Awaited<ReturnType<typeof getDashboardData>>> => {
+    try {
+      return await getDashboardData(user.id);
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.error('[dashboard] getDashboardData failed', err);
+      // Empty-but-shaped fallback so the page renders.
+      return {
+        counts: { activeCourses: 0, completedCourses: 0, activeTasks: 0, totalSessions: 0, totalMinutes: 0 },
+        upcomingTasks: [],
+        recentSessionsByDay: Array.from({ length: 14 }, (_, i) => ({
+          day: new Date(Date.now() - (13 - i) * 86400000).toISOString().slice(5, 10),
+          minutes: 0,
+        })),
+        courses: [],
+      };
+    }
+  })();
+
   const greeting = timeOfDayGreeting(user.name);
 
   return (
