@@ -9,20 +9,47 @@ export const dynamic = 'force-dynamic';
 
 const baseHandler = toNextJsHandler(auth);
 
-// Allowed origins for CORS preflight. Same-origin requests bypass this;
-// cross-origin (e.g. mobile clients) need explicit headers.
-function corsHeaders(req: NextRequest): Headers {
-  const origin = req.headers.get('origin');
-  // Allow same-origin (origin === BETTER_AUTH_URL host) and any explicitly
-  // trusted app URL. Dev: http://localhost:3000 / :4000.
-  const allowed = new Set<string>([
-    process.env.BETTER_AUTH_URL ?? '',
-    process.env.NEXT_PUBLIC_APP_URL ?? '',
-    'http://localhost:3000',
-    'http://localhost:4000',
-  ]);
+/**
+ * Build the allowlist of origins that may call this auth endpoint.
+ *
+ * Rules:
+ *  - Same-origin requests always pass (we accept any origin matching this
+ *    server's own host:port, regardless of env).
+ *  - Explicitly trusted origins from env (BETTER_AUTH_URL / NEXT_PUBLIC_APP_URL).
+ *  - Local dev ports for the API server (apps/api).
+ */
+function isAllowedOrigin(req: NextRequest, origin: string | null): boolean {
+  if (!origin) return false; // no Origin header (curl, same-origin in some cases) — let it through? be strict here
+  // Same-origin: compare scheme + host + port against the request URL.
+  try {
+    const reqUrl = new URL(req.url);
+    const o = new URL(origin);
+    if (
+      o.protocol === reqUrl.protocol &&
+      o.host === reqUrl.host
+    ) {
+      return true;
+    }
+  } catch {
+    // malformed origin, fall through
+  }
+  // Trusted env-set origins.
+  const trusted = new Set<string>(
+    [
+      process.env.BETTER_AUTH_URL,
+      process.env.NEXT_PUBLIC_APP_URL,
+      'http://localhost:3000',
+      'http://localhost:4000',
+    ].filter((v): v is string => typeof v === 'string' && v.length > 0),
+  );
+  return trusted.has(origin);
+}
+
+/** Build CORS headers. Always returns the full header set; the caller decides
+ * whether to emit them based on whether the origin is allowed. */
+function corsHeaders(req: NextRequest, origin: string | null): Headers {
   const h = new Headers();
-  if (origin && allowed.has(origin)) {
+  if (origin && isAllowedOrigin(req, origin)) {
     h.set('Access-Control-Allow-Origin', origin);
     h.set('Access-Control-Allow-Credentials', 'true');
     h.set('Vary', 'Origin');
@@ -35,7 +62,8 @@ function corsHeaders(req: NextRequest): Headers {
 
 /** Handle CORS preflight. */
 export function OPTIONS(req: NextRequest) {
-  return new NextResponse(null, { status: 204, headers: corsHeaders(req) });
+  const origin = req.headers.get('origin');
+  return new NextResponse(null, { status: 204, headers: corsHeaders(req, origin) });
 }
 
 /** Wrap the Better Auth handlers so CORS headers are always present. */
@@ -43,18 +71,19 @@ async function withCors(
   req: NextRequest,
   handler: (req: NextRequest) => Promise<Response>,
 ): Promise<Response> {
+  const origin = req.headers.get('origin');
   try {
     const res = await handler(req);
     // Merge CORS headers into whatever Better Auth returned.
     const out = new Headers(res.headers);
-    const cors = corsHeaders(req);
+    const cors = corsHeaders(req, origin);
     cors.forEach((v, k) => out.set(k, v));
     return new Response(res.body, { status: res.status, statusText: res.statusText, headers: out });
   } catch (err) {
     // Surface the real error with proper CORS so the browser shows it,
     // not a generic "CORS blocked" message.
     const message = err instanceof Error ? err.message : 'Auth error';
-    const headers = corsHeaders(req);
+    const headers = corsHeaders(req, origin);
     headers.set('Content-Type', 'application/json');
     return new NextResponse(JSON.stringify({ error: { code: 'AUTH_ERROR', message } }), {
       status: 500,
