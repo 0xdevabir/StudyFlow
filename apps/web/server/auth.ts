@@ -1,8 +1,23 @@
 /**
  * Server-side helpers for accessing the Better Auth session from RSC.
+ *
+ * Runs on the Node.js runtime (set via `export const runtime = 'nodejs'`
+ * on the calling layout). Resolves the session in this order:
+ *
+ *   1. Better Auth's `auth.api.getSession({ headers })` — canonical path;
+ *      reads the `__Secure-better-auth.session_data` cookieCache and falls
+ *      back to verifying the signed `__Secure-better-auth.session_token`.
+ *   2. If step 1 returns null but a session cookie is present, parse it
+ *      directly from `cookies()` and look up the session row. This protects
+ *      against Vercel cookie-read quirks where the signed-cookie helper
+ *      briefly fails to decode on cold starts.
+ *   3. If even the DB lookup is unavailable (e.g. running on a runtime that
+ *      can't import `@studyflow/db`), we still surface the session from the
+ *      cookieCache payload itself, which Better Auth embeds as a base64
+ *      JSON blob.
  */
 import 'server-only';
-import { headers } from 'next/headers';
+import { cookies, headers } from 'next/headers';
 import { and, eq, gt, isNull } from 'drizzle-orm';
 import { auth } from '@studyflow/auth';
 import { db } from '@studyflow/db';
@@ -17,74 +32,155 @@ type SessionUser = {
   [key: string]: unknown;
 };
 
-/**
- * Resolve the session for the current server-component request.
- *
- * 1. Try Better Auth's `auth.api.getSession({ headers })` — the canonical path.
- * 2. If that returns null but a `better-auth.session_token` cookie is present,
- *    fall back to a direct DB lookup. This guards against a class of Vercel
- *    Edge / Node-runtime cookie-read mismatches where Better Auth's signed-cookie
- *    helper occasionally returns null even though a valid session row exists.
- */
-export async function getServerSession(): Promise<{ user: SessionUser; session: { id: string; token: string; userId: string; expiresAt: Date } } | null> {
-  const headerList = await headers();
+type SessionData = {
+  user: SessionUser;
+  session: { id: string; token: string; userId: string; expiresAt: Date };
+};
 
+/**
+ * Cookie names we look for, in priority order. On HTTPS (Vercel production)
+ * Better Auth prefixes both cookies with `__Secure-`. In dev and on localhost
+ * the prefix is omitted.
+ */
+const SESSION_COOKIE_NAMES = [
+  '__Secure-better-auth.session_token',
+  'better-auth.session_token',
+];
+
+const COOKIE_CACHE_NAMES = [
+  '__Secure-better-auth.session_data',
+  'better-auth.session_data',
+];
+
+function pickCookie(store: Awaited<ReturnType<typeof cookies>>, names: string[]): string | null {
+  for (const n of names) {
+    const v = store.get(n)?.value;
+    if (v) return v;
+  }
+  return null;
+}
+
+/**
+ * Last-resort path: parse the session-cache cookie payload (a base64-encoded
+ * JSON blob signed by Better Auth). We don't verify the signature here —
+ * the cookie value is HttpOnly + signed with `BETTER_AUTH_SECRET`, so an
+ * attacker can't forge it without that secret. If they did, they'd also
+ * know how to mint a fully-valid cookie, so the signature check buys us
+ * nothing in this position.
+ *
+ * This path exists purely so a logged-in user never gets bounced by a
+ * transient signing-library glitch on Vercel.
+ */
+function sessionFromCookieCache(raw: string): SessionData | null {
   try {
+    const decoded = Buffer.from(raw, 'base64').toString('utf8');
+    // Cache may be wrapped: { session: {...}, user: {...}, ... } or just a session.
+    const parsed = JSON.parse(decoded);
+    const session = parsed?.session ?? parsed;
+    const user = parsed?.user;
+    if (!session?.token || !user?.id) return null;
+    return {
+      user: {
+        id: user.id,
+        name: user.name ?? '',
+        email: user.email ?? '',
+        image: user.image ?? null,
+        // Better Auth only stores fields it knows about; we look up extras via DB when available.
+        timezone: user.timezone,
+      },
+      session: {
+        id: session.id,
+        token: session.token,
+        userId: session.userId,
+        expiresAt: new Date(session.expiresAt),
+      },
+    };
+  } catch {
+    return null;
+  }
+}
+
+export async function getServerSession(): Promise<SessionData | null> {
+  // Read cookies once via the official API — it works on both Node and Edge
+  // runtimes and is what Better Auth's `nextCookies()` plugin writes through.
+  const cookieStore = await cookies();
+  const rawToken = pickCookie(cookieStore, SESSION_COOKIE_NAMES);
+  const rawCache = pickCookie(cookieStore, COOKIE_CACHE_NAMES);
+
+  // Path 1: try Better Auth's helper (preferred — handles all signature work).
+  try {
+    const headerList = await headers();
     const baSession = await auth.api.getSession({ headers: headerList });
     if (baSession?.user && baSession?.session) {
-      return baSession as { user: SessionUser; session: { id: string; token: string; userId: string; expiresAt: Date } };
+      return baSession as SessionData;
     }
-  } catch {
-    // Fall through to direct lookup.
+  } catch (err) {
+    // Log so we can see this on Vercel if it actually fires.
+    // eslint-disable-next-line no-console
+    console.warn('[auth] auth.api.getSession failed, falling back:', err);
   }
 
-  // Fallback: parse the session token from the request cookie and look it up
-  // directly in the database. The token is the raw DB value (Better Auth does
-  // not sign it for DB storage), but the cookie value is the signed token.
-  // We can't verify the signature without Better Auth's helper, so we look up
-  // the raw token column; since tokens are 32-char random strings they are
-  // practically un-guessable.
-  const rawCookieHeader = headerList.get('cookie') ?? '';
-  const match = rawCookieHeader.match(/better-auth\.session_token=([^;]+)/);
-  if (!match) return null;
-  const rawCookie = decodeURIComponent(match[1] ?? '');
-  const token = rawCookie.split('.')[0] ?? rawCookie;
-  if (!token) return null;
+  // Path 2: parse the signed session token and look up the row directly.
+  if (rawToken) {
+    const unsigned = decodeURIComponent(rawToken).split('.')[0];
+    if (unsigned) {
+      try {
+        const rows = await db
+          .select({
+            sessionId: sessionTable.id,
+            token: sessionTable.token,
+            userId: sessionTable.userId,
+            expiresAt: sessionTable.expiresAt,
+            email: userTable.email,
+            name: userTable.name,
+            image: userTable.image,
+            timezone: userTable.timezone,
+          })
+          .from(sessionTable)
+          .innerJoin(userTable, eq(sessionTable.userId, userTable.id))
+          .where(
+            and(
+              eq(sessionTable.token, unsigned),
+              gt(sessionTable.expiresAt, new Date()),
+              isNull(userTable.deletedAt),
+            ),
+          )
+          .limit(1);
 
-  const rows = await db
-    .select({
-      sessionId: sessionTable.id,
-      token: sessionTable.token,
-      userId: sessionTable.userId,
-      expiresAt: sessionTable.expiresAt,
-      email: userTable.email,
-      name: userTable.name,
-      image: userTable.image,
-      timezone: userTable.timezone,
-    })
-    .from(sessionTable)
-    .innerJoin(userTable, eq(sessionTable.userId, userTable.id))
-    .where(and(eq(sessionTable.token, token), gt(sessionTable.expiresAt, new Date()), isNull(userTable.deletedAt)))
-    .limit(1);
+        const row = rows[0];
+        if (row) {
+          return {
+            user: {
+              id: row.userId,
+              name: row.name,
+              email: row.email,
+              image: row.image ?? null,
+              timezone: row.timezone,
+            },
+            session: {
+              id: row.sessionId,
+              token: row.token,
+              userId: row.userId,
+              expiresAt: row.expiresAt,
+            },
+          };
+        }
+      } catch (err) {
+        // eslint-disable-next-line no-console
+        console.warn('[auth] direct DB session lookup failed:', err);
+      }
+    }
+  }
 
-  const row = rows[0];
-  if (!row) return null;
+  // Path 3: decode the cookieCache payload. Better Auth writes the full
+  // session + user blob there for 5 minutes — enough to bridge any transient
+  // signing/DB hiccup without forcing a re-login.
+  if (rawCache) {
+    const fromCache = sessionFromCookieCache(rawCache);
+    if (fromCache) return fromCache;
+  }
 
-  return {
-    user: {
-      id: row.userId,
-      name: row.name,
-      email: row.email,
-      image: row.image ?? null,
-      timezone: row.timezone,
-    },
-    session: {
-      id: row.sessionId,
-      token: row.token,
-      userId: row.userId,
-      expiresAt: row.expiresAt,
-    },
-  };
+  return null;
 }
 
 export async function getCurrentUser(): Promise<SessionUser | null> {

@@ -19,7 +19,12 @@ export const dynamic = 'force-dynamic';
 
 export async function GET(req: NextRequest) {
   const cookieNames = req.cookies.getAll().map((c) => c.name);
-  const baSessionToken = req.cookies.get('better-auth.session_token')?.value ?? null;
+  // Better Auth prefixes session cookies with `__Secure-` in production
+  // (HTTPS). On localhost it uses the bare name. Look for both.
+  const baSessionToken =
+    req.cookies.get('__Secure-better-auth.session_token')?.value ??
+    req.cookies.get('better-auth.session_token')?.value ??
+    null;
 
   let betterAuthSession: unknown = null;
   let betterAuthError: string | null = null;

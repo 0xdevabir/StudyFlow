@@ -12,6 +12,10 @@ import type {
 import { getCurrentUser } from '~/server/auth';
 import { listCourseOptions, listTasks } from '~/server/tasks';
 
+// Node.js runtime — Drizzle needs Node APIs (pg, dotenv).
+export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
+
 interface PageProps {
   searchParams?: Promise<{
     q?: string;
@@ -25,8 +29,6 @@ interface PageProps {
     view?: 'list' | 'board';
   }>;
 }
-
-export const dynamic = 'force-dynamic';
 
 export default async function TasksPage({ searchParams }: PageProps) {
   const user = await getCurrentUser();

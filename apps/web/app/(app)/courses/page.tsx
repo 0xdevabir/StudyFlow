@@ -15,6 +15,10 @@ import { NewCourseDialog } from '~/components/courses/new-course-dialog';
 import { getCurrentUser } from '~/server/auth';
 import { listCourses } from '~/server/courses';
 
+// Node.js runtime — Drizzle needs Node APIs (pg, dotenv).
+export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
+
 interface PageProps {
   searchParams?: Promise<{
     q?: string;

@@ -3,8 +3,11 @@ import { getServerSession } from '~/server/auth';
 import { Sidebar } from '~/components/layout/sidebar';
 import { Topbar } from '~/components/layout/topbar';
 
-// Every (app) page needs the session, which means we cannot prerender.
-// Setting this once on the layout applies to every nested route.
+// We MUST run on Node.js because `getServerSession` uses Drizzle/Postgres,
+// which can't execute on Edge. Forcing the runtime here cascades to every
+// nested (app) page; otherwise Vercel defaults to Edge and we'd silently
+// fail to read the DB and redirect every user to /login.
+export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {

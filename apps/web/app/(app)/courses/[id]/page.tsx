@@ -11,6 +11,10 @@ import { Badge } from '~/components/ui/badge';
 import { getCurrentUser } from '~/server/auth';
 import { getCourseDetail } from '~/server/courses';
 
+// Node.js runtime — Drizzle needs Node APIs (pg, dotenv).
+export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
+
 interface PageProps {
   params: Promise<{ id: string }>;
 }

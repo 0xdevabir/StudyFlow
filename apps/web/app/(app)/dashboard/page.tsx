@@ -9,6 +9,10 @@ import { getDashboardData } from '~/server/dashboard';
 import { getCurrentUser } from '~/server/auth';
 import { timeOfDayGreeting } from '~/lib/utils';
 
+// Node.js runtime — see note in (app)/layout.tsx.
+export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
+
 export default async function DashboardPage() {
   const user = await getCurrentUser();
   if (!user) redirect('/login');
