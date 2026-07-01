@@ -2,6 +2,11 @@
  * Edge-runtime route guard. Redirects unauthenticated users from (app) routes
  * to /login. Public routes: /, /login, /register, /forgot-password,
  * /verify-email, /api/auth/*, /api/health.
+ *
+ * Cookie naming: Better Auth prefixes its session cookies with `__Secure-`
+ * on HTTPS (Vercel production), so the middleware has to accept BOTH the
+ * bare name (local dev / HTTP) and the prefixed name. Missing this check
+ * used to bounce every logged-in user on the live deployment back to /login.
  */
 import { NextResponse, type NextRequest } from 'next/server';
 
@@ -9,10 +14,19 @@ const PUBLIC_PATHS = ['/', '/login', '/register', '/forgot-password', '/verify-e
 
 const PUBLIC_PREFIXES = ['/api/auth', '/api/health', '/_next', '/favicon'];
 
-const COOKIE_NAMES = [
+/**
+ * Each name we look for has a `__Secure-` variant that Better Auth writes
+ * in HTTPS contexts, plus the original name used in dev / HTTP. Both are
+ * checked so the guard doesn't bounce logged-in users on production.
+ */
+const COOKIE_NAMES: string[] = [
   'studyflow_session',
   'better-auth.session_token',
+  '__Secure-better-auth.session_token',
   'better-auth.session',
+  '__Secure-better-auth.session',
+  'better-auth.session_data',
+  '__Secure-better-auth.session_data',
 ];
 
 function hasSessionCookie(req: NextRequest): boolean {
