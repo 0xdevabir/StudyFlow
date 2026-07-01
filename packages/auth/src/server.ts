@@ -28,6 +28,17 @@ function buildAuth() {
     secret: env.BETTER_AUTH_SECRET,
     trustedOrigins: [env.BETTER_AUTH_URL],
 
+    advanced: {
+      // Our schema uses Postgres `uuid` for `users.id`, `sessions.id`,
+      // `accounts.id`, etc. Better Auth's default generateId() returns a
+      // 32-char alphanumeric string, which would fail to insert into a uuid
+      // column. Forcing `uuid` here makes Better Auth produce real UUIDs
+      // that match our schema.
+      database: {
+        generateId: 'uuid',
+      },
+    },
+
     database: drizzleAdapter(db as never, {
       provider: 'pg',
       schema: {
